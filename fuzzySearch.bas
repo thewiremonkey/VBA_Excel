@@ -1,88 +1,191 @@
-Option Explicit
+Attribute VB_Name = "FuzzySearch"
 
-Sub FindReplaceList()
-'
-' Macro designed to run a find/replace routine on a long list of paired items.
-' The paired find/replace items are place in a separate file named "list.docx" in a single column table.
-' The table should not include a header row.
-'
-Dim main As Document
-Dim mainstr As String 'variable for holding the path of the main document
-' Dim dlg As dialog 'optional for creating a dialog box to let the user select the "list.docx" but it is not included in this macro
-' Dim fname As String 'optional for capturing the path string of the file selected via the dlg dialog.
-Dim liststr As String 'variable holding the path string for "list.docx"
-Dim list As Document
-Dim tbl As Table 'the table in "list.docx"
-Dim col1 As Range 'the first column of the "list.docx" table
-Dim rng As Range
-Dim i As Long 'generic counter for loops
-Dim find As Variant 'final array holding all the find terms
-Dim findstr As String 'intermediary string holding all the find terms
-Dim replacestr As String 'intermediary string holding all the replace terms
-Dim replace As Variant 'final array for holding all the replace terms
-Dim temparray As Variant 'intermediary array holding the contents of the list.docx table
-Dim temp As Variant 'second temporary array holding the contents of the list.docx table
+Sub CloseMatchWhole()
+'Application.ScreenUpdating = False
+Dim Criteria() As Variant
+Dim Exceptions() As Variant
+Dim ws As Worksheet
+Dim counter As Long 'counts cells
+Dim i, j, k, n, m, p As Long 'i counts whole search criteria, k counts partial search criteria_
+'n counts misses after a hit
+Dim st, stF, stO As String
+Dim s As Variant
+Dim x, y, z As Long 'x counts hits, y is the length of the search criteria
+Dim r As Range
+Dim rCrit As Range
+Dim rE As Range
+
+Dim start, finish
+start = Timer
 
 
-Set main = ActiveDocument
-mainstr = ActiveDocument.Path
-'set the path for the find/replace list.  It should be a single, two-column table
-Set list = Application.Documents.Open("list.docx") 'two column table, first column is find terms, second is replace terms
-liststr = list.Path 'put list path into string
-Set tbl = list.Tables(1) 'there should only be one table, no header, no blank cells in "find" column
-Set rng = tbl.ConvertToText(Separator:=vbTab) 'temporarily converts the table to text to push into an array
+Set r = Application.InputBox(prompt:="Please Select Range", Title:="Range Select", Type:=8)
+Set rCrit = Application.InputBox(prompt:="Please Select Criteria Range", Title:="Range Select", Type:=8)
 
-temparray = Split(rng.Text, vbCr) 'pulls in rows as elements in the array
-list.Undo 'put the converted text back into a table
-ReDim temp(UBound(temparray))
-
-For i = 0 To UBound(temparray) - 1
-    temp(i) = Split(temparray(i), vbTab) 'split temparray into a Ubound(temparray) by 2 array
-Next
-
-i = 0 'reset the counter to zero
-
-For i = 0 To UBound(temp) - 1 'create two separate strings one for find and one for replace,
-'split these strings in the next step to create two arrays
-
-    findstr = findstr & temp(i)(0) & vbCr
-    replacestr = replacestr & temp(i)(1) & vbCr
-Next
-
-find = Split(findstr, vbCr)  'create the find array
-replace = Split(replacestr, vbCr) 'create the replace array
-
-ReDim Preserve find(UBound(find) - 1) 'get rid of the final empty item
-ReDim Preserve replace(UBound(replace) - 1) 'remove the final, empty item
-
-main.Activate 'go back to the main document
-Selection.HomeKey unit:=wdStory 'place the cursor at the top of the document
-
-i = 0 'reset the counter to zero
+Debug.Print r.Address
+Debug.Print rCrit.Address
 
 
-'loop through the find array, replace with the corresponding item from the replace array
+ReDim Criteria(0 To 1)
+        For i = 0 To rCrit.Cells.Count - 1
+        ReDim Preserve Criteria(0 To i)
+        Criteria(i) = rCrit.Cells(i + 1).Value
+        Next i
 
-For i = 0 To UBound(find)
-    Selection.find.ClearFormatting
-        Selection.find.Replacement.ClearFormatting
-        With Selection.find
-            .Text = find(i)
-            .Replacement.Text = replace(i)
-            .Forward = True
-            .Wrap = wdFindContinue
-            .Format = False
-            .MatchCase = False
-            .MatchWholeWord = True
-            .MatchWildcards = False
-            .MatchSoundsLike = False
-            .MatchAllWordForms = False
-        End With
-        Selection.find.Execute replace:=wdReplaceAll
+
+
+z = 0
+p = 0
+m = 0
+n = 0
+x = 0
+
+
+For counter = 1 To r.Cells.Count
+st = r.Cells(counter).Value
+For i = 0 To UBound(Criteria)
+        
+    If Not Criteria(i) = "" Then
+    
+    
+    
+    On Error Resume Next
+        y = Len(Criteria(i))
+        
+        For k = 1 To y - 2
+        
+            stF = Mid(Criteria(i), k, 3)
+                Select Case p
+                Case 0
+                m = InStr(1, st, stF, vbBinaryCompare)
+                p = m
+                
+                Case 1
+                m = InStr(p, st, stF, vbBinaryCompare)
+                p = p
+                
+                Case Is >= 2
+                m = InStr(p - 1, st, stF, vbBinaryCompare)
+                p = p
+                End Select
+                
+                If m > 0 Then
+                p = p
+                x = x + 1
+                
+                    Else:
+                    
+                    n = n + 1
+                        If n < 5 And (m - p) > k + 4 Then
+                        p = 0
+                        Else:
+                        p = p
+                        
+                    End If
+                
+                End If
+
+                
+                
+                    If x > y * 0.45 And x < y * 0.6 And p <> 0 Then
+                        z = z + 1
+                        If (Mid(r.Cells(counter), p, 1)) = UCase(Mid(r.Cells(counter), p, 1)) Then
+                            With r.Cells(counter).Characters(p, Len(Criteria(i))).Font
+                            .color = RGB(0, 102, 0)
+                            .Bold = True
+                            End With
+                        End If
+                        
+                    End If
+                        
+                    If x >= y * 0.7 And Not p = 0 Then
+                        z = z + 1
+                        If (Mid(r.Cells(counter), p, 1)) = UCase(Mid(r.Cells(counter), p, 1)) Then
+                        r.Cells(counter).Characters(p, Len(Criteria(i))).Font.color = RGB(0, 37, 147)
+'                        stO = Mid(r.Cells(counter), p, Len(Criteria(i)))
+'                            If Not stO = "" Then
+'                                ActiveWorkbook.Sheets(1).Range("a1").Activate
+'                                ActiveCell.Offset(counter, 0).Value = stO
+'                                ActiveCell.Offset(counter, 1).Value = Criteria(i)
+'                                ActiveCell.Offset(counter, 2).Value = r.Cells(counter).Address
+'                            End If
+                        
+                        
+                        End If
+
+                    End If
+        Next k
+
+          'Debug.Print p; m; x; n; k; stF & " : " & Criteria(i)
+        
+        p = 0
+       
+       End If
+ _
+
+        p = 0
+        x = 0
+        k = 0
+        m = 0
+        n = 0
 Next i
 
+p = 0
+m = 0
+x = 0
+y = 0
+n = 0
 
+Next counter
+    counter = 0
+    finish = Timer
+    
+    MsgBox finish - start
+    Call ExactMatchWhole
+    
 End Sub
 
+Sub ExactMatchWhole()
+Application.ScreenUpdating = False
 
+Dim Criteria() As Variant
+Dim counter As Long
+Dim i, j, n, m As Long
+Dim st, stC As String
+Dim s As Variant
+Dim x As Variant
+Dim r, rCrit As Range
+Dim start, finish
+start = Timer
+
+Set rCrit = ActiveWorkbook.Sheets("sheet2").Range("Criteria2")
+
+ReDim Criteria(0 To 1)
+        For i = 0 To rCrit.Cells.Count - 1
+        ReDim Preserve Criteria(0 To i)
+        Criteria(i) = rCrit.Cells(i + 1).Value
+        Next i
+
+Set r = ActiveWorkbook.Sheets("ICMS Search").Range("LookIn")
+
+For counter = 1 To r.Cells.Count
+st = r.Cells(counter).Value
+
+For i = 0 To UBound(Criteria)
+If Not Criteria(i) = "" Then
+On Error Resume Next
+m = InStr(1, st, Criteria(i), vbBinaryCompare)
+    If m > 0 Then
+
+        r.Cells(counter).Characters(m, Len(Criteria(i))).Font.color = vbRed
+    End If
+End If
+Next i
+        
+    Next counter
+    
+    finish = Timer
+    
+    MsgBox finish - start
+End Sub
 
